@@ -25,6 +25,7 @@ const state = {
   logsByExercise: {}, // { exerciseId: [log,...] sorted desc by date }
   editingClientId: null,
   logSheetExerciseId: null,
+  exerciseSearch: "",
 };
 
 /* ---------------- helpers ---------------- */
@@ -393,11 +394,30 @@ function renderCategoryTabs() {
     b.textContent = cat.label;
     b.addEventListener("click", () => {
       state.activeCategory = cat.key;
+      state.exerciseSearch = "";
+      const searchInput = $("search-exercises");
+      if (searchInput) searchInput.value = "";
       renderCategoryTabs();
       renderExercises();
     });
     wrap.appendChild(b);
   });
+}
+
+$("search-exercises").addEventListener("input", (e) => {
+  state.exerciseSearch = e.target.value;
+  renderExercises();
+});
+
+function getBestSet(logs) {
+  if (!logs || !logs.length) return null;
+  let best = logs[0];
+  for (const l of logs) {
+    if (l.weight_kg != null && (best.weight_kg == null || l.weight_kg > best.weight_kg)) {
+      best = l;
+    }
+  }
+  return best;
 }
 
 /* ---------------- exercises + logs ---------------- */
@@ -451,9 +471,11 @@ async function loadExercisesAndLogs(clientId) {
 function renderExercises() {
   const wrap = $("exercises-list");
   wrap.innerHTML = "";
-  const list = state.exercisesByCategory[state.activeCategory] || [];
+  const fullList = state.exercisesByCategory[state.activeCategory] || [];
+  const search = (state.exerciseSearch || "").trim().toLowerCase();
+  const list = search ? fullList.filter((ex) => ex.name.toLowerCase().includes(search)) : fullList;
 
-  if (list.length === 0) {
+  if (fullList.length === 0) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     empty.innerHTML = `<div class="glyph">💪</div><div>Sin ejercicios todavía en esta categoría.<br/>Añade el primero abajo.</div>`;
@@ -461,9 +483,17 @@ function renderExercises() {
     return;
   }
 
+  if (list.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `<div class="glyph">🔍</div><div>Ningún ejercicio coincide con "${escapeHtml(state.exerciseSearch)}".</div>`;
+    wrap.appendChild(empty);
+    return;
+  }
+
   list.forEach((ex) => {
     const logs = state.logsByExercise[ex.id] || [];
-    const latest = logs[0];
+    const best = getBestSet(logs);
     const card = document.createElement("div");
     card.className = "exercise-card";
 
@@ -479,16 +509,17 @@ function renderExercises() {
       </div>
       <div class="latest-row">
         ${
-          latest
+          best
             ? `
-          <div class="stat"><span class="val">${latest.weight_kg ?? "—"}kg</span><span class="lbl">Peso</span></div>
-          <div class="stat"><span class="val">${latest.reps ?? "—"}</span><span class="lbl">Reps</span></div>
-          <div class="stat"><span class="val">${latest.rir ?? "—"}</span><span class="lbl">RIR</span></div>
+          <div class="stat"><span class="val">${best.weight_kg ?? "—"}kg</span><span class="lbl">Peso máx.</span></div>
+          <div class="stat"><span class="val">${best.reps ?? "—"}</span><span class="lbl">Reps</span></div>
+          <div class="stat"><span class="val">${best.rir ?? "—"}</span><span class="lbl">RIR</span></div>
           <svg class="sparkline" data-spark="${ex.id}"></svg>
         `
             : `<div class="no-logs">Sin registros todavía</div>`
         }
       </div>
+      ${best ? `<div class="latest-date-note">Mejor marca: ${formatDate(best.log_date)}</div>` : ""}
       ${logs.length ? `<div class="history-toggle" data-toggle="${historyId}">Ver histórico (${logs.length})</div>` : ""}
       <div class="history-list" id="${historyId}">
         ${logs
@@ -524,7 +555,7 @@ function renderExercises() {
 
     wrap.appendChild(card);
 
-    if (latest) {
+    if (best) {
       const svg = card.querySelector("[data-spark]");
       drawSparkline(svg, logs.slice(0, 8).reverse());
     }

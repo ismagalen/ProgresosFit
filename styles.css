@@ -315,6 +315,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.4; }
 .stat .val { font-size: 16px; font-weight: 700; }
 .stat .lbl { font-size: 10.5px; color: var(--text-faint); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
 .no-logs { font-size: 12.5px; color: var(--text-faint); font-style: italic; }
+.latest-date-note { font-size: 11px; color: var(--text-faint); margin-top: -4px; }
 
 .sparkline { flex: 1; height: 30px; min-width: 40px; }
 
