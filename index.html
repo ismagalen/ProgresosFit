@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Progreso Fit</title>
+<meta name="description" content="Seguimiento de entrenamientos de tus clientas y clientes" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#17b399" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ============== SETUP SCREEN (Supabase config) ============== -->
+  <section id="screen-setup" class="screen">
+    <div class="content center-screen">
+      <div class="brand-mark">🏋️</div>
+      <h2>Configuración inicial</h2>
+      <p class="hint">Conecta la app con tu base de datos gratuita de Supabase. Solo se hace una vez por dispositivo.</p>
+      <form id="form-setup" class="form-stack" style="margin-top:10px;">
+        <div class="field">
+          <label for="setup-url">Project URL de Supabase</label>
+          <input type="text" id="setup-url" placeholder="https://xxxxxxxx.supabase.co" required autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </div>
+        <div class="field">
+          <label for="setup-key">Anon public key</label>
+          <input type="text" id="setup-key" placeholder="eyJhbGciOi..." required autocomplete="off" autocapitalize="off" spellcheck="false" />
+        </div>
+        <div class="error-msg" id="setup-error"></div>
+        <button type="submit" class="btn btn-primary">Guardar y continuar</button>
+      </form>
+      <p class="hint">¿Dónde consigo esto? En tu proyecto de Supabase → <b>Project Settings → API</b>. Copia "Project URL" y la clave "anon public".</p>
+    </div>
+  </section>
+
+  <!-- ============== AUTH SCREEN ============== -->
+  <section id="screen-auth" class="screen">
+    <div class="content center-screen">
+      <div class="brand-mark">🏋️</div>
+      <h2>Progreso Fit</h2>
+      <p class="hint">Tu cuaderno de entrenamiento, en el móvil.</p>
+
+      <div class="tabs-toggle" style="margin-top:14px;">
+        <button type="button" id="tab-login" class="active">Iniciar sesión</button>
+        <button type="button" id="tab-signup">Crear cuenta</button>
+      </div>
+
+      <form id="form-auth" class="form-stack">
+        <div class="field">
+          <label for="auth-email">Email</label>
+          <input type="email" id="auth-email" required autocomplete="email" />
+        </div>
+        <div class="field">
+          <label for="auth-password">Contraseña</label>
+          <input type="password" id="auth-password" required autocomplete="current-password" minlength="6" />
+        </div>
+        <div class="error-msg" id="auth-error"></div>
+        <button type="submit" class="btn btn-primary" id="auth-submit">
+          <span id="auth-submit-label">Entrar</span>
+        </button>
+      </form>
+      <button type="button" class="btn-text" id="btn-change-config">Cambiar configuración de Supabase</button>
+    </div>
+  </section>
+
+  <!-- ============== CLIENT LIST ============== -->
+  <section id="screen-clients" class="screen">
+    <div class="topbar">
+      <h1>Mis clientas/clientes</h1>
+      <button class="icon-btn" id="btn-logout" title="Cerrar sesión">⎋</button>
+    </div>
+    <div class="content">
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-clients" placeholder="Buscar por nombre..." />
+      </div>
+      <div class="segment">
+        <button type="button" class="active" data-filter="active">Activas</button>
+        <button type="button" data-filter="inactive">Inactivas</button>
+        <button type="button" data-filter="all">Todas</button>
+      </div>
+      <div id="clients-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+      <div id="clients-empty" class="empty-state hidden">
+        <div class="glyph">🗒️</div>
+        <div>Todavía no tienes clientas o clientes por aquí.<br/>Pulsa el botón + para añadir el primero.</div>
+      </div>
+    </div>
+    <button class="fab" id="btn-add-client" title="Añadir clienta/cliente">+</button>
+  </section>
+
+  <!-- ============== CLIENT DETAIL ============== -->
+  <section id="screen-client" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" id="btn-back-clients">←</button>
+      <h1 id="client-title">Detalle</h1>
+      <button class="icon-btn" id="btn-edit-client">✎</button>
+    </div>
+    <div class="content">
+      <div class="client-header">
+        <div class="row-top">
+          <div class="name-big" id="client-name">—</div>
+        </div>
+        <div class="tag-row" id="client-tags"></div>
+        <div class="detail-grid">
+          <div class="item"><div class="k">Edad</div><div class="v" id="client-age">—</div></div>
+          <div class="item"><div class="k">Tipo de entrenamiento</div><div class="v" id="client-type">—</div></div>
+          <div class="item" style="grid-column: 1 / -1;"><div class="k">Objetivos</div><div class="v" id="client-objectives">—</div></div>
+          <div class="item" style="grid-column: 1 / -1;"><div class="k">Patologías</div><div class="v" id="client-pathologies">—</div></div>
+        </div>
+      </div>
+
+      <div class="cat-tabs" id="cat-tabs"></div>
+
+      <div id="exercises-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+      <div class="add-exercise-row">
+        <input type="text" id="new-exercise-name" placeholder="Añadir ejercicio nuevo..." />
+        <button class="btn btn-primary btn-sm" id="btn-add-exercise">Añadir</button>
+      </div>
+
+      <div class="section-title">Anotaciones</div>
+      <div class="notes-box">
+        <textarea id="client-notes" placeholder="Notas generales de esta clienta/cliente..."></textarea>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-save-notes" style="align-self:flex-start;">Guardar anotaciones</button>
+
+      <button class="btn btn-secondary btn-sm" id="btn-toggle-active" style="align-self:flex-start; margin-top:6px;">Desactivar clienta/cliente</button>
+    </div>
+  </section>
+
+  <!-- ============== SHEET: edit client ============== -->
+  <div class="sheet-backdrop" id="sheet-client-backdrop">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h3 id="sheet-client-title">Nueva clienta/cliente</h3>
+      <form id="form-client" class="form-stack">
+        <div class="field">
+          <label for="f-name">Nombre *</label>
+          <input type="text" id="f-name" required />
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label for="f-age">Edad</label>
+            <input type="number" id="f-age" min="0" max="120" />
+          </div>
+          <div class="field">
+            <label for="f-type">Tipo de entrenamiento</label>
+            <input type="text" id="f-type" placeholder="Fuerza, hipertrofia..." />
+          </div>
+        </div>
+        <div class="field">
+          <label for="f-objectives">Objetivos</label>
+          <textarea id="f-objectives" placeholder="Hipertrofia, pérdida de grasa..."></textarea>
+        </div>
+        <div class="field">
+          <label for="f-pathologies">Patologías</label>
+          <textarea id="f-pathologies" placeholder="Lesiones, molestias a tener en cuenta..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar</button>
+        <button type="button" class="btn btn-text" id="btn-cancel-client">Cancelar</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ============== SHEET: add log entry ============== -->
+  <div class="sheet-backdrop" id="sheet-log-backdrop">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h3 id="sheet-log-title">Registrar serie</h3>
+      <form id="form-log" class="form-stack">
+        <div class="field">
+          <label for="log-date">Fecha</label>
+          <input type="date" id="log-date" required />
+        </div>
+        <div class="row-3">
+          <div class="field">
+            <label for="log-weight">Peso (kg)</label>
+            <input type="number" step="0.25" id="log-weight" inputmode="decimal" />
+          </div>
+          <div class="field">
+            <label for="log-reps">Reps</label>
+            <input type="number" step="1" id="log-reps" inputmode="numeric" />
+          </div>
+          <div class="field">
+            <label for="log-rir">RIR</label>
+            <input type="number" step="0.5" id="log-rir" inputmode="decimal" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="log-note">Nota (opcional)</label>
+          <input type="text" id="log-note" placeholder="Unilateral, con polea..." />
+        </div>
+        <button type="submit" class="btn btn-primary">Guardar registro</button>
+        <button type="button" class="btn btn-text" id="btn-cancel-log">Cancelar</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
