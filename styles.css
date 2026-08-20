@@ -317,6 +317,30 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.4; }
 .no-logs { font-size: 12.5px; color: var(--text-faint); font-style: italic; }
 .latest-date-note { font-size: 11px; color: var(--text-faint); margin-top: -4px; }
 
+.gallery-item {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  box-shadow: var(--shadow);
+}
+.gallery-item-name { font-size: 14px; font-weight: 500; flex: 1; min-width: 0; }
+.picker-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 11px 13px;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+.picker-item:active { background: var(--surface-2); }
+
 .sparkline { flex: 1; height: 30px; min-width: 40px; }
 
 .history-toggle { font-size: 12.5px; color: var(--accent); font-weight: 600; cursor: pointer; align-self: flex-start; }

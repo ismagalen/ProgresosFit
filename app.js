@@ -13,6 +13,39 @@ const CATEGORIES = [
 const CONFIG_KEY = "pf_config_v1";
 const CACHE_PREFIX = "pf_cache_";
 
+// Catálogo inicial sugerido (se puede cargar por categoría desde la Galería,
+// editar, borrar o ampliar libremente una vez cargado).
+const SEED_CATALOG = {
+  tren_inferior: [
+    "Peso Muerto Barra", "Peso Muerto Multipower", "Peso Muerto KTB", "Peso Muerto KTB Unilateral", "Peso Muerto Landmine",
+    "Sentadilla Barra", "Sentadilla Multipower", "Hack Squat", "Sentadilla Sumo", "Sentadilla Sumo KTB", "Sentadilla Búlgara", "Sentadilla Búlgara Multipower",
+    "Prensa Horizontal", "Prensa Horizontal + Vasto Externo", "Prensa Horizontal Unilateral", "Prensa Horizontal Vasto Externo", "Prensa Inclinada", "Prensa Inclinada Unilateral", "Prensa Vasto Externo",
+    "Hip Thrust", "Hip Thrust Máquina", "Hip Thrust Saco", "Hip Thrust Unilateral",
+    "Zancada Step Back", "Zancada Multipower", "Zancada Lateral", "Zancada con Balón Estático", "Zancada Péndulo Multipower",
+    "Patada Glúteo Polea", "Patada Vertical Glúteo", "Patada Lateral Glúteo",
+    "Aductor Máquina", "Aductor Polea", "Aductor Disco", "Aductor Matrix", "Aductor Banco", "Abductor Máquina", "Abductor Polea",
+    "Curl Femoral", "Femoral Tumbado", "Extensión Cuádriceps", "Extensión Cuádriceps Unilateral",
+    "Gemelos Máquina", "Subidas al Cajón (con saco)",
+  ],
+  espalda: [
+    "Jalón al Pecho", "Jalón Máquina", "Jalón Neutro", "Jalón Alto Unilateral",
+    "Remo Mancuernas", "Remo Bajo Unilateral", "Remo Bajo Supino", "Remo Gironda", "Remo Landmine", "Remo Abierto Neutro", "Remo Semiarrodillado", "Remo Alto Semiarrodillado", "Remo Barra", "Remo Lateral Semiarrodillado",
+    "Face Pull", "Pull Over", "Dominadas (asistida)",
+  ],
+  pectoral_hombros: [
+    "Press Inclinado Máquina", "Press Inclinado Mancuerna", "Press Plano Mancuerna", "Press Plano Máquina", "Press Militar Máquina Unilateral", "Press Militar Mancuerna", "Press Disco Inclinado", "Press Frontal Disco",
+    "Aperturas Mancuerna", "Aperturas Polea", "Aperturas Polea Sentado", "Contractora",
+    "Elevaciones Laterales Máquina", "Elevaciones Laterales Polea", "Elevaciones Laterales Banco", "Pájaros Banco", "Pájaros Máquina", "Deltoides Posterior Polea",
+  ],
+  brazos: [
+    "Curl Mancuerna", "Curl Martillo Polea", "Predicador Máquina", "Predicador Unilateral Mancuerna", "Curl con Pelota", "Curl Cruzado Unilateral",
+    "Extensión Tríceps Polea", "Extensión Tríceps Unilateral", "Extensión Tríceps tras Nuca (Mancuerna)", "Press Francés Mancuerna",
+  ],
+  funcional: [
+    "Dead Bug", "Remo Gorila", "Lunges con Balón (Isométrico)", "Zancadas con Salto", "Box Jump Step", "Levantamiento Turco Semiarrodillado", "Wall Ball", "Pallof Press Polea", "Swing (Kettlebell)",
+  ],
+};
+
 const state = {
   sb: null,
   user: null,
@@ -26,6 +59,11 @@ const state = {
   editingClientId: null,
   logSheetExerciseId: null,
   exerciseSearch: "",
+  catalogByCategory: {}, // { category: [catalogItem,...] }
+  catalogLoaded: false,
+  activeGalleryCategory: CATEGORIES[0].key,
+  gallerySearch: "",
+  pickerSearch: "",
 };
 
 /* ---------------- helpers ---------------- */
@@ -420,6 +458,281 @@ function getBestSet(logs) {
   return best;
 }
 
+/* ---------------- exercise catalog (galería) ---------------- */
+async function loadCatalog() {
+  try {
+    const { data, error } = await state.sb
+      .from("exercise_catalog")
+      .select("*")
+      .order("order_index", { ascending: true });
+    if (error) throw error;
+    CATEGORIES.forEach((c) => (state.catalogByCategory[c.key] = []));
+    (data || []).forEach((item) => {
+      if (!state.catalogByCategory[item.category]) state.catalogByCategory[item.category] = [];
+      state.catalogByCategory[item.category].push(item);
+    });
+    state.catalogLoaded = true;
+    cacheSet("catalog", state.catalogByCategory);
+  } catch (e) {
+    const cached = cacheGet("catalog");
+    if (cached) {
+      state.catalogByCategory = cached;
+      state.catalogLoaded = true;
+      toast("Sin conexión: mostrando la galería guardada.");
+    } else {
+      toast("No se pudo cargar la galería de ejercicios.");
+    }
+  }
+}
+
+function findCatalogItemByName(category, name) {
+  const list = state.catalogByCategory[category] || [];
+  const lower = name.trim().toLowerCase();
+  return list.find((it) => it.name.toLowerCase() === lower) || null;
+}
+
+async function ensureCatalogItem(category, name) {
+  const existing = findCatalogItemByName(category, name);
+  if (existing) return existing;
+  const order = (state.catalogByCategory[category] || []).length;
+  const { data, error } = await state.sb
+    .from("exercise_catalog")
+    .insert({ category, name, order_index: order })
+    .select()
+    .single();
+  if (error) throw error;
+  if (!state.catalogByCategory[category]) state.catalogByCategory[category] = [];
+  state.catalogByCategory[category].push(data);
+  return data;
+}
+
+/* ---- pantalla Galería (gestión completa) ---- */
+async function openGalleryScreen() {
+  showScreen("screen-gallery");
+  state.activeGalleryCategory = CATEGORIES[0].key;
+  state.gallerySearch = "";
+  $("search-gallery").value = "";
+  if (!state.catalogLoaded) await loadCatalog();
+  renderGalleryCatTabs();
+  renderGalleryList();
+}
+$("btn-open-gallery").addEventListener("click", openGalleryScreen);
+$("btn-back-gallery").addEventListener("click", () => showScreen("screen-clients"));
+
+function renderGalleryCatTabs() {
+  const wrap = $("gallery-cat-tabs");
+  wrap.innerHTML = "";
+  CATEGORIES.forEach((cat) => {
+    const b = document.createElement("button");
+    b.className = "cat-pill" + (cat.key === state.activeGalleryCategory ? " active" : "");
+    b.textContent = cat.label;
+    b.addEventListener("click", () => {
+      state.activeGalleryCategory = cat.key;
+      state.gallerySearch = "";
+      $("search-gallery").value = "";
+      renderGalleryCatTabs();
+      renderGalleryList();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+$("search-gallery").addEventListener("input", (e) => {
+  state.gallerySearch = e.target.value;
+  renderGalleryList();
+});
+
+function renderGalleryList() {
+  const wrap = $("gallery-list");
+  wrap.innerHTML = "";
+  const cat = state.activeGalleryCategory;
+  const fullList = state.catalogByCategory[cat] || [];
+  const search = (state.gallerySearch || "").trim().toLowerCase();
+  const list = search ? fullList.filter((it) => it.name.toLowerCase().includes(search)) : fullList;
+
+  if (fullList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    const catLabel = CATEGORIES.find((c) => c.key === cat)?.label || "";
+    empty.innerHTML = `
+      <div class="glyph">📚</div>
+      <div>Todavía no hay ejercicios en "${escapeHtml(catLabel)}".</div>
+    `;
+    wrap.appendChild(empty);
+    if (SEED_CATALOG[cat] && SEED_CATALOG[cat].length) {
+      const seedBtn = document.createElement("button");
+      seedBtn.className = "btn btn-secondary btn-sm";
+      seedBtn.style.marginTop = "10px";
+      seedBtn.textContent = `Cargar ${SEED_CATALOG[cat].length} ejercicios sugeridos`;
+      seedBtn.addEventListener("click", () => seedGalleryCategory(cat));
+      wrap.appendChild(seedBtn);
+    }
+    return;
+  }
+
+  if (list.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `<div class="glyph">🔍</div><div>Ningún ejercicio coincide con "${escapeHtml(state.gallerySearch)}".</div>`;
+    wrap.appendChild(empty);
+    return;
+  }
+
+  list.forEach((item) => {
+    const row = document.createElement("div");
+    row.className = "gallery-item";
+    row.innerHTML = `
+      <span class="gallery-item-name">${escapeHtml(item.name)}</span>
+      <div class="exercise-actions">
+        <button class="mini-btn" data-action="rename">✎</button>
+        <button class="mini-btn" data-action="delete">🗑</button>
+      </div>
+    `;
+    row.querySelector('[data-action="rename"]').addEventListener("click", () => renameCatalogItem(item));
+    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteCatalogItem(item));
+    wrap.appendChild(row);
+  });
+}
+
+async function seedGalleryCategory(category) {
+  try {
+    const names = SEED_CATALOG[category] || [];
+    const existing = new Set((state.catalogByCategory[category] || []).map((it) => it.name.toLowerCase()));
+    const toInsert = names
+      .filter((n) => !existing.has(n.toLowerCase()))
+      .map((n, i) => ({ category, name: n, order_index: i }));
+    if (!toInsert.length) return;
+    const { data, error } = await state.sb.from("exercise_catalog").insert(toInsert).select();
+    if (error) throw error;
+    state.catalogByCategory[category] = [...(state.catalogByCategory[category] || []), ...(data || [])];
+    renderGalleryList();
+    toast("Catálogo cargado.");
+  } catch (e) {
+    toast("Error al cargar el catálogo: " + e.message);
+  }
+}
+
+$("btn-add-gallery").addEventListener("click", addGalleryItemFromInput);
+$("new-gallery-name").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addGalleryItemFromInput(); }
+});
+async function addGalleryItemFromInput() {
+  const input = $("new-gallery-name");
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    await ensureCatalogItem(state.activeGalleryCategory, name);
+    input.value = "";
+    renderGalleryList();
+  } catch (e) {
+    toast("Error al añadir a la galería: " + e.message);
+  }
+}
+
+async function renameCatalogItem(item) {
+  const name = prompt("Nuevo nombre del ejercicio:", item.name);
+  if (!name || !name.trim() || name.trim() === item.name) return;
+  try {
+    const { error } = await state.sb.from("exercise_catalog").update({ name: name.trim() }).eq("id", item.id);
+    if (error) throw error;
+    item.name = name.trim();
+    renderGalleryList();
+  } catch (e) {
+    toast("Error: " + e.message);
+  }
+}
+
+async function deleteCatalogItem(item) {
+  if (!confirm(`¿Quitar "${item.name}" de la galería? Esto no borra el historial de las clientas que ya lo tengan añadido, solo deja de aparecer como sugerencia.`)) return;
+  try {
+    const { error } = await state.sb.from("exercise_catalog").delete().eq("id", item.id);
+    if (error) throw error;
+    state.catalogByCategory[item.category] = (state.catalogByCategory[item.category] || []).filter((it) => it.id !== item.id);
+    renderGalleryList();
+    toast("Eliminado de la galería.");
+  } catch (e) {
+    toast("Error: " + e.message);
+  }
+}
+
+/* ---- sheet selector: añadir ejercicio a la clienta desde la galería ---- */
+$("btn-open-picker").addEventListener("click", openPickerSheet);
+$("btn-cancel-picker").addEventListener("click", () => closeSheet("sheet-picker-backdrop"));
+
+async function openPickerSheet() {
+  state.pickerSearch = "";
+  $("picker-search").value = "";
+  $("picker-new-name").value = "";
+  const catLabel = CATEGORIES.find((c) => c.key === state.activeCategory)?.label || "";
+  $("sheet-picker-title").textContent = "Elegir ejercicio · " + catLabel;
+  if (!state.catalogLoaded) await loadCatalog();
+  renderPickerList();
+  openSheet("sheet-picker-backdrop");
+  setTimeout(() => $("picker-search").focus(), 150);
+}
+
+$("picker-search").addEventListener("input", (e) => {
+  state.pickerSearch = e.target.value;
+  renderPickerList();
+});
+
+function renderPickerList() {
+  const wrap = $("picker-list");
+  wrap.innerHTML = "";
+  const cat = state.activeCategory;
+  const alreadyAdded = new Set((state.exercisesByCategory[cat] || []).map((ex) => ex.name.toLowerCase()));
+  const fullList = (state.catalogByCategory[cat] || []).filter((it) => !alreadyAdded.has(it.name.toLowerCase()));
+  const search = (state.pickerSearch || "").trim().toLowerCase();
+  const list = search ? fullList.filter((it) => it.name.toLowerCase().includes(search)) : fullList;
+
+  if (fullList.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `<div class="glyph">📚</div><div>No hay más ejercicios disponibles en la galería para esta categoría.<br/>Añade uno nuevo abajo.</div>`;
+    wrap.appendChild(empty);
+    return;
+  }
+  if (list.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.innerHTML = `<div class="glyph">🔍</div><div>Ningún ejercicio coincide con la búsqueda.</div>`;
+    wrap.appendChild(empty);
+    return;
+  }
+
+  list.forEach((item) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "picker-item";
+    btn.textContent = item.name;
+    btn.addEventListener("click", async () => {
+      const ok = await addExerciseToClient(item.name);
+      if (ok) {
+        closeSheet("sheet-picker-backdrop");
+        toast(item.name + " añadido.");
+      }
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+$("btn-picker-add-new").addEventListener("click", async () => {
+  const input = $("picker-new-name");
+  const name = input.value.trim();
+  if (!name) return;
+  try {
+    await ensureCatalogItem(state.activeCategory, name);
+    const ok = await addExerciseToClient(name);
+    if (ok) {
+      input.value = "";
+      closeSheet("sheet-picker-backdrop");
+      toast(name + " añadido.");
+    }
+  } catch (e) {
+    toast("Error: " + e.message);
+  }
+});
+
 /* ---------------- exercises + logs ---------------- */
 async function loadExercisesAndLogs(clientId) {
   state.exercisesByCategory = {};
@@ -582,15 +895,8 @@ function drawSparkline(svg, logs) {
   svg.innerHTML = `<polyline points="${pts.join(" ")}" fill="none" stroke="${accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 
-/* add exercise */
-$("btn-add-exercise").addEventListener("click", addExerciseFromInput);
-$("new-exercise-name").addEventListener("keydown", (e) => {
-  if (e.key === "Enter") { e.preventDefault(); addExerciseFromInput(); }
-});
-async function addExerciseFromInput() {
-  const input = $("new-exercise-name");
-  const name = input.value.trim();
-  if (!name) return;
+/* add exercise (desde la galería) */
+async function addExerciseToClient(name) {
   try {
     const order = (state.exercisesByCategory[state.activeCategory] || []).length;
     const { data, error } = await state.sb
@@ -604,11 +910,13 @@ async function addExerciseFromInput() {
       .select()
       .single();
     if (error) throw error;
+    if (!state.exercisesByCategory[state.activeCategory]) state.exercisesByCategory[state.activeCategory] = [];
     state.exercisesByCategory[state.activeCategory].push(data);
-    input.value = "";
     renderExercises();
+    return true;
   } catch (e) {
     toast("Error al añadir ejercicio: " + e.message);
+    return false;
   }
 }
 

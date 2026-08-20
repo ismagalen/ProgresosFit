@@ -72,6 +72,7 @@
   <section id="screen-clients" class="screen">
     <div class="topbar">
       <h1>Mis clientas/clientes</h1>
+      <button class="icon-btn" id="btn-open-gallery" title="Galería de ejercicios">📚</button>
       <button class="icon-btn" id="btn-logout" title="Cerrar sesión">⎋</button>
     </div>
     <div class="content">
@@ -91,6 +92,27 @@
       </div>
     </div>
     <button class="fab" id="btn-add-client" title="Añadir clienta/cliente">+</button>
+  </section>
+
+  <!-- ============== EXERCISE GALLERY (catálogo global) ============== -->
+  <section id="screen-gallery" class="screen">
+    <div class="topbar">
+      <button class="icon-btn" id="btn-back-gallery">←</button>
+      <h1>Galería de ejercicios</h1>
+    </div>
+    <div class="content">
+      <p class="hint">Estos son los ejercicios disponibles para elegir al añadirlos a una clienta/cliente. Puedes editarlos, borrarlos o añadir los tuyos.</p>
+      <div class="cat-tabs" id="gallery-cat-tabs"></div>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="search-gallery" placeholder="Buscar en esta categoría..." />
+      </div>
+      <div id="gallery-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+      <div class="add-exercise-row">
+        <input type="text" id="new-gallery-name" placeholder="Añadir ejercicio nuevo a la galería..." />
+        <button class="btn btn-primary btn-sm" id="btn-add-gallery">Añadir</button>
+      </div>
+    </div>
   </section>
 
   <!-- ============== CLIENT DETAIL ============== -->
@@ -123,10 +145,7 @@
 
       <div id="exercises-list" style="display:flex; flex-direction:column; gap:10px;"></div>
 
-      <div class="add-exercise-row">
-        <input type="text" id="new-exercise-name" placeholder="Añadir ejercicio nuevo..." />
-        <button class="btn btn-primary btn-sm" id="btn-add-exercise">Añadir</button>
-      </div>
+      <button class="btn btn-secondary" id="btn-open-picker">📚 Añadir ejercicio desde la galería</button>
 
       <div class="section-title">Anotaciones</div>
       <div class="notes-box">
@@ -203,6 +222,24 @@
         <button type="submit" class="btn btn-primary">Guardar registro</button>
         <button type="button" class="btn btn-text" id="btn-cancel-log">Cancelar</button>
       </form>
+    </div>
+  </div>
+
+  <!-- ============== SHEET: pick exercise from gallery ============== -->
+  <div class="sheet-backdrop" id="sheet-picker-backdrop">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <h3 id="sheet-picker-title">Elegir ejercicio</h3>
+      <div class="search-bar">
+        <span>🔍</span>
+        <input type="text" id="picker-search" placeholder="Buscar en la galería..." />
+      </div>
+      <div id="picker-list" style="display:flex; flex-direction:column; gap:8px; max-height:38vh; overflow-y:auto;"></div>
+      <div class="add-exercise-row">
+        <input type="text" id="picker-new-name" placeholder="¿No está? Añádelo a la galería..." />
+        <button class="btn btn-primary btn-sm" id="btn-picker-add-new">Añadir</button>
+      </div>
+      <button type="button" class="btn btn-text" id="btn-cancel-picker">Cancelar</button>
     </div>
   </div>
 
